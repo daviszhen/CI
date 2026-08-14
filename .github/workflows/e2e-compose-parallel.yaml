@@ -230,7 +230,7 @@ jobs:
       - name: Download shared MatrixOne build
         if: ${{ inputs.build_artifact != '' }}
         continue-on-error: true
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: ${{ inputs.build_artifact }}
           path: ${{ runner.temp }}/mo-prebuilt

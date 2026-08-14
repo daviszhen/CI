@@ -87,7 +87,7 @@ jobs:
               "https://api.github.com/repos/${pr_repo}/pulls/${pr_number}" -o diff.patch
           fi
       - name: Download test coverage artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           # A full rerun rotates the shared generation. Filter out artifacts
           # left by previous attempts while retaining successful producers
