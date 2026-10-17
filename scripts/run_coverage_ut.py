@@ -19,6 +19,8 @@ import sys
 import time
 from dataclasses import dataclass, field
 
+from coverage_resources import append_sample
+
 
 @dataclass
 class Progress:
@@ -189,10 +191,14 @@ def run(args: argparse.Namespace) -> int:
     args.timeout_diagnostics.unlink(missing_ok=True)
     if args.pid_file:
         args.pid_file.unlink(missing_ok=True)
+    if args.resource_samples:
+        args.resource_samples.unlink(missing_ok=True)
     if args.phase_timing:
         append_line(args.phase_timing, "phase=coverage_ut status=started")
 
     started = time.monotonic()
+    if args.resource_samples:
+        append_sample(args.resource_samples, 0)
     progress = Progress()
     interrupted: list[int] = []
 
@@ -245,6 +251,8 @@ def run(args: argparse.Namespace) -> int:
             if now - last_heartbeat >= args.heartbeat_seconds:
                 line = progress.snapshot(elapsed, report)
                 append_line(args.progress, line)
+                if args.resource_samples:
+                    append_sample(args.resource_samples, elapsed)
                 if now - last_console_heartbeat >= args.console_heartbeat_seconds:
                     print(f"::notice title=Coverage UT progress::{line}", flush=True)
                     last_console_heartbeat = now
@@ -254,6 +262,8 @@ def run(args: argparse.Namespace) -> int:
                 line = progress.snapshot(elapsed, report)
                 append_line(args.progress, f"cancelled {line} {reason}")
                 stop_process_group(process, process_group_id)
+                if args.resource_samples:
+                    append_sample(args.resource_samples, time.monotonic() - started)
                 status = {
                     "result": "cancelled",
                     "exit_code": 143,
@@ -307,6 +317,9 @@ def run(args: argparse.Namespace) -> int:
         if process_group_exists(process_group_id):
             stop_process_group(process, process_group_id)
 
+    if args.resource_samples:
+        append_sample(args.resource_samples, time.monotonic() - started)
+
     if args.pid_file:
         args.pid_file.unlink(missing_ok=True)
 
@@ -346,6 +359,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--timeout-diagnostics", type=Path, required=True)
     parser.add_argument("--phase-timing", type=Path)
     parser.add_argument("--pid-file", type=Path)
+    parser.add_argument("--resource-samples", type=Path)
     parser.add_argument("--cwd", type=Path)
     parser.add_argument("--timeout-seconds", type=int, default=3600)
     parser.add_argument("--heartbeat-seconds", type=float, default=15)
