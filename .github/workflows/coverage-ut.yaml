@@ -185,7 +185,6 @@ jobs:
           sparse-checkout: |
             scripts/prepare_coverage_cgo.sh
             scripts/run_coverage_ut.py
-            scripts/coverage_resources.py
             scripts/compact_coverage_profile.go
             scripts/summarize_coverage_ut.py
           sparse-checkout-cone-mode: false
@@ -227,12 +226,7 @@ jobs:
           # Parent-shell fallback if the Python runner itself stops making
           # progress after its controlled 60-minute deadline.
           COVERAGE_UT_FALLBACK_TIMEOUT_SECONDS: "4200"
-          # Eight instrumented test/compile processes can fill the runner's
-          # shared 14 GiB cgroup even while embedded clusters serialize their
-          # lifecycles. This path does not use MatrixOne's Makefile UT pool.
-          # Bound both package/compile overlap and each process's Go workers.
-          COVERAGE_UT_PACKAGE_PARALLELISM: "2"
-          COVERAGE_UT_GOMAXPROCS: "2"
+          COVERAGE_UT_PACKAGE_PARALLELISM: "8"
           COVERAGE_UT_DISCOVERY_TIMEOUT_SECONDS: "900"
           COVERAGE_UT_CGO_TIMEOUT_SECONDS: "1800"
         run: |
@@ -345,7 +339,6 @@ jobs:
           fi
           package_count=$(printf '%s\n' "${test_scope}" | awk 'NF { count++ } END { print count + 0 }')
           echo "coverage_ut package_count=${package_count} package_parallelism=${COVERAGE_UT_PACKAGE_PARALLELISM}" | tee -a "${phase_timing}"
-          echo "coverage_ut gomaxprocs=${COVERAGE_UT_GOMAXPROCS}" | tee -a "${phase_timing}"
 
           phase_start prepare_cgo
           set +e
@@ -417,13 +410,11 @@ jobs:
             --timeout-diagnostics "${timeout_diagnostics}" \
             --phase-timing "${phase_timing}" \
             --pid-file "${runner_pid_file}" \
-            --resource-samples "${RUNNER_TEMP}/ut-coverage-resources.jsonl" \
             --cwd "$GITHUB_WORKSPACE" \
             --timeout-seconds "${COVERAGE_UT_TEST_TIMEOUT_SECONDS}" \
             --heartbeat-seconds "${COVERAGE_UT_HEARTBEAT_SECONDS}" \
             --console-heartbeat-seconds "${COVERAGE_UT_CONSOLE_HEARTBEAT_SECONDS}" \
-            -- env GOMAXPROCS="${COVERAGE_UT_GOMAXPROCS}" \
-            CGO_CFLAGS="${cgo_cflags}" CGO_LDFLAGS="${cgo_ldflags}" \
+            -- env CGO_CFLAGS="${cgo_cflags}" CGO_LDFLAGS="${cgo_ldflags}" \
             go test -mod=readonly -count=1 -json -short -v -tags matrixone_test \
             -timeout=20m \
             -p "${COVERAGE_UT_PACKAGE_PARALLELISM}" \
@@ -615,10 +606,7 @@ jobs:
             ps -eo pid,ppid,rss,vsz,stat,etime,cmd --sort=-rss | head -n 50
             echo
             echo '## Cgroup memory'
-            for file in /sys/fs/cgroup/memory.current /sys/fs/cgroup/memory.max /sys/fs/cgroup/memory.events \
-              /sys/fs/cgroup/memory/memory.usage_in_bytes /sys/fs/cgroup/memory/memory.limit_in_bytes \
-              /sys/fs/cgroup/memory/memory.max_usage_in_bytes /sys/fs/cgroup/memory/memory.failcnt \
-              /sys/fs/cgroup/memory/memory.oom_control /sys/fs/cgroup/memory/memory.stat; do
+            for file in /sys/fs/cgroup/memory.current /sys/fs/cgroup/memory.max /sys/fs/cgroup/memory.events; do
               echo "### ${file}"
               if [ -r "${file}" ]; then
                 cat "${file}"
@@ -626,9 +614,6 @@ jobs:
                 echo unavailable
               fi
             done
-            echo
-            echo '## During-test resource samples (last 5; full JSONL is attached)'
-            tail -n 5 "${RUNNER_TEMP}/ut-coverage-resources.jsonl"
             echo
             echo '## Recent kernel messages'
             sudo dmesg -T 2>&1 | tail -n 1000
@@ -758,17 +743,6 @@ jobs:
             ${{ runner.temp }}/ut-coverage-status.json
             ${{ runner.temp }}/ut-coverage-timeout.txt
             ${{ runner.temp }}/ut-coverage-phase-timing.txt
-            ${{ runner.temp }}/ut-coverage-resources.jsonl
-          if-no-files-found: warn
-          retention-days: 7
-      - name: Upload coverage UT resource samples
-        if: ${{ always() && !cancelled() && steps.coverage_ut.outcome == 'success' }}
-        timeout-minutes: 5
-        continue-on-error: true
-        uses: actions/upload-artifact@v7
-        with:
-          name: ut-coverage-resources-attempt-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/ut-coverage-resources.jsonl
           if-no-files-found: warn
           retention-days: 7
       - name: Fail on coverage UT failure

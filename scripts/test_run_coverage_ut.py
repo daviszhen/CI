@@ -51,8 +51,6 @@ class RunCoverageUTTest(unittest.TestCase):
                 str(timing),
                 "--pid-file",
                 str(pid_file),
-                "--resource-samples",
-                str(root / "resources.jsonl"),
                 "--timeout-seconds",
                 str(timeout),
                 "--heartbeat-seconds",
@@ -177,10 +175,6 @@ class RunCoverageUTTest(unittest.TestCase):
         self.assertFalse(timeout_diagnostics.exists())
         self.assertFalse(pid_file.exists())
         self.assertTrue(report.exists())
-        samples = [json.loads(line) for line in (report.parent / "resources.jsonl").read_text().splitlines()]
-        self.assertGreaterEqual(len(samples), 2, "keep before/after samples even for a very short command")
-        self.assertEqual(samples[0]["elapsed_seconds"], 0)
-        self.assertIn("cgroups", samples[-1])
 
     def test_timeout_saves_reason_and_progress_before_killing_group(self):
         result, report, progress, status, timeout_diagnostics, timing, pid_file = self.run_wrapper(

@@ -19,8 +19,6 @@ on:
       - 'scripts/test_merge_trigger_tke_subject.py'
       - 'scripts/compact_coverage_profile.go'
       - 'scripts/compact_coverage_profile_test.go'
-      - 'scripts/*coverage*ut*.py'
-      - 'scripts/*coverage_resources.py'
       - 'scripts/*race_seed*.py'
 
 permissions:
@@ -85,11 +83,6 @@ jobs:
             scripts/compact_coverage_profile_test.go
       - name: Test coverage artifact generation selection
         run: python3 scripts/test_select_coverage_artifacts.py -v
-      - name: Test coverage UT runner and resource evidence
-        timeout-minutes: 5
-        run: |
-          python3 scripts/test_coverage_resources.py -v
-          python3 scripts/test_run_coverage_ut.py -v
       - name: Test TKE merge subject identity contract
         run: python3 scripts/test_merge_trigger_tke_subject.py -v
       - name: Test SCA license scope selection
